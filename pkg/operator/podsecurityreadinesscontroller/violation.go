@@ -2,6 +2,7 @@ package podsecurityreadinesscontroller
 
 import (
 	"context"
+	"fmt"
 
 	securityv1 "github.com/openshift/api/security/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,29 +27,14 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 		return false, err
 	}
 
-	var selectedLabel string
-
-	if _, ok := nsApplyConfig.Labels[securityv1.MinimallySufficientPodSecurityStandard]; ok {
-		selectedLabel = nsApplyConfig.Labels[securityv1.MinimallySufficientPodSecurityStandard]
-	} else {
-		viableLabels := map[string]string{}
-
-		for alertLabel := range alertLabels {
-			if value, ok := nsApplyConfig.Labels[alertLabel]; ok {
-				viableLabels[alertLabel] = value
-			}
-		}
-
-		if len(viableLabels) == 0 {
-			// If there are no labels managed by the syncer, we can't make a decision.
-			return false, nil
-		}
-
-		selectedLabel = pickStrictest(viableLabels)
+	enforceLabel, err := determineEnforceLabelForNamespace(nsApplyConfig)
+	if err != nil {
+		// If there are no labels managed by the syncer, we can't make a decision.
+		return false, nil
 	}
 
 	nsApply := applyconfiguration.Namespace(ns.Name).WithLabels(map[string]string{
-		psapi.EnforceLevelLabel: selectedLabel,
+		psapi.EnforceLevelLabel: enforceLabel,
 	})
 
 	_, err = c.kubeClient.CoreV1().
@@ -63,6 +49,28 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 
 	// If there are warnings, the namespace is violating.
 	return len(c.warningsHandler.PopAll()) > 0, nil
+}
+
+func determineEnforceLabelForNamespace(ns *applyconfiguration.NamespaceApplyConfiguration) (string, error) {
+	if _, ok := ns.Labels[securityv1.MinimallySufficientPodSecurityStandard]; ok {
+		// Pick the MinimallySufficientPodSecurityStandard if it exists
+		return ns.Labels[securityv1.MinimallySufficientPodSecurityStandard], nil
+	}
+
+	viableLabels := map[string]string{}
+
+	for alertLabel := range alertLabels {
+		if value, ok := ns.Labels[alertLabel]; ok {
+			viableLabels[alertLabel] = value
+		}
+	}
+
+	if len(viableLabels) == 0 {
+		// If there are no labels managed by the syncer, we can't make a decision.
+		return "", fmt.Errorf("no appropriate labels to select")
+	}
+
+	return pickStrictest(viableLabels), nil
 }
 
 func pickStrictest(viableLabels map[string]string) string {
