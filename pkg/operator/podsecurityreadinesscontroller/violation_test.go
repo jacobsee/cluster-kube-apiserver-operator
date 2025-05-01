@@ -21,7 +21,7 @@ var managedFields = []metav1.ManagedFieldsEntry{
 		Operation: "Apply",
 		FieldsV1: &metav1.FieldsV1{
 			Raw: []byte(
-				fmt.Sprintf(`{"f:metadata":{"f:labels":{"f:%s":{},"f:%s":{},"f:%s":{},"f:%s":{}}}}`,
+				fmt.Sprintf(`{"f:metadata":{"f:annotations":{"f:%s":{}},"f:labels":{"f:%s":{},"f:%s":{},"f:%s":{}}}}`,
 					securityv1.MinimallySufficientPodSecurityStandard,
 					psapi.WarnLevelLabel,
 					psapi.AuditLevelLabel,
@@ -42,11 +42,11 @@ func TestIsNamespaceViolating(t *testing.T) {
 		expectError     bool
 	}{
 		{
-			name: "namespace with MinimallySufficientPodSecurityStandard label and no violations",
+			name: "namespace with MinimallySufficientPodSecurityStandard annotation and no violations",
 			namespace: &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-ns-1",
-					Labels: map[string]string{
+					Annotations: map[string]string{
 						securityv1.MinimallySufficientPodSecurityStandard: "restricted",
 					},
 				},
@@ -59,11 +59,11 @@ func TestIsNamespaceViolating(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name: "namespace with MinimallySufficientPodSecurityStandard label and violations",
+			name: "namespace with MinimallySufficientPodSecurityStandard annotation and violations",
 			namespace: &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-ns-2",
-					Labels: map[string]string{
+					Annotations: map[string]string{
 						securityv1.MinimallySufficientPodSecurityStandard: "restricted",
 					},
 				},
@@ -129,7 +129,7 @@ func TestIsNamespaceViolating(t *testing.T) {
 			namespace: &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-ns-6",
-					Labels: map[string]string{
+					Annotations: map[string]string{
 						securityv1.MinimallySufficientPodSecurityStandard: "restricted",
 					},
 				},

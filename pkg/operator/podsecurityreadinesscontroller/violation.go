@@ -52,9 +52,9 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 }
 
 func determineEnforceLabelForNamespace(ns *applyconfiguration.NamespaceApplyConfiguration) (string, error) {
-	if _, ok := ns.Labels[securityv1.MinimallySufficientPodSecurityStandard]; ok {
+	if _, ok := ns.Annotations[securityv1.MinimallySufficientPodSecurityStandard]; ok {
 		// Pick the MinimallySufficientPodSecurityStandard if it exists
-		return ns.Labels[securityv1.MinimallySufficientPodSecurityStandard], nil
+		return ns.Annotations[securityv1.MinimallySufficientPodSecurityStandard], nil
 	}
 
 	viableLabels := map[string]string{}
@@ -66,7 +66,7 @@ func determineEnforceLabelForNamespace(ns *applyconfiguration.NamespaceApplyConf
 	}
 
 	if len(viableLabels) == 0 {
-		// If there are no labels managed by the syncer, we can't make a decision.
+		// If there are no labels/annotations managed by the syncer, we can't make a decision.
 		return "", fmt.Errorf("no appropriate labels to select")
 	}
 
