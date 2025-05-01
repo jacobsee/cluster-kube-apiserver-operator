@@ -76,41 +76,7 @@ func TestIsNamespaceViolating(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name: "namespace with audit label and no violations",
-			namespace: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ns-3",
-					Labels: map[string]string{
-						psapi.AuditLevelLabel: "restricted",
-					},
-				},
-			},
-			warnings: []string{},
-			setupMockClient: func() kubernetes.Interface {
-				return &mockKubeClientWithResponse{}
-			},
-			expectViolating: false,
-			expectError:     false,
-		},
-		{
-			name: "namespace with audit label and violations",
-			namespace: &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ns-4",
-					Labels: map[string]string{
-						psapi.AuditLevelLabel: "restricted",
-					},
-				},
-			},
-			warnings: []string{"violation found"},
-			setupMockClient: func() kubernetes.Interface {
-				return &mockKubeClientWithResponse{}
-			},
-			expectViolating: true,
-			expectError:     false,
-		},
-		{
-			name: "namespace with no relevant labels",
+			name: "namespace with no annotation",
 			namespace: &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-ns-5",
@@ -122,7 +88,7 @@ func TestIsNamespaceViolating(t *testing.T) {
 				return &mockKubeClientWithResponse{}
 			},
 			expectViolating: false,
-			expectError:     false,
+			expectError:     true,
 		},
 		{
 			name: "Apply returns error",
