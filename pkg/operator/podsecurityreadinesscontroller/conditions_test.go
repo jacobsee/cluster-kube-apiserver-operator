@@ -9,16 +9,44 @@ import (
 )
 
 func TestCondition(t *testing.T) {
-	t.Run("with namespaces", func(t *testing.T) {
+	t.Run("with violating namespaces", func(t *testing.T) {
 		namespaces := []string{"namespace1", "namespace2"}
 		expectedCondition := operatorv1.OperatorCondition{
-			Type:    PodSecurityCustomerType,
+			Type:    PodSecurityCustomerViolationType,
 			Status:  operatorv1.ConditionTrue,
 			Reason:  "PSViolationsDetected",
 			Message: "Violations detected in namespaces: [namespace1 namespace2]",
 		}
 
-		condition := makeCondition(PodSecurityCustomerType, namespaces)
+		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
+
+		if condition.Type != expectedCondition.Type {
+			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
+		}
+
+		if condition.Status != expectedCondition.Status {
+			t.Errorf("expected condition status %s, got %s", expectedCondition.Status, condition.Status)
+		}
+
+		if condition.Reason != expectedCondition.Reason {
+			t.Errorf("expected condition reason %s, got %s", expectedCondition.Reason, condition.Reason)
+		}
+
+		if condition.Message != expectedCondition.Message {
+			t.Errorf("expected condition message %s, got %s", expectedCondition.Message, condition.Message)
+		}
+	})
+
+	t.Run("with inconclusive namespaces", func(t *testing.T) {
+		namespaces := []string{"namespace1", "namespace2"}
+		expectedCondition := operatorv1.OperatorCondition{
+			Type:    PodSecurityCustomerViolationType,
+			Status:  operatorv1.ConditionTrue,
+			Reason:  "PSViolationsDetected",
+			Message: "Violations detected in namespaces: [namespace1 namespace2]",
+		}
+
+		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
@@ -40,12 +68,12 @@ func TestCondition(t *testing.T) {
 	t.Run("without namespaces", func(t *testing.T) {
 		namespaces := []string{}
 		expectedCondition := operatorv1.OperatorCondition{
-			Type:   PodSecurityCustomerType,
+			Type:   PodSecurityCustomerViolationType,
 			Status: operatorv1.ConditionFalse,
 			Reason: "ExpectedReason",
 		}
 
-		condition := makeCondition(PodSecurityCustomerType, namespaces)
+		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
@@ -68,12 +96,13 @@ func TestCondition(t *testing.T) {
 
 func TestOperatorStatus(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		namespace []*corev1.Namespace
-		expected  map[string]operatorv1.ConditionStatus
+		name                          string
+		namespace                     []*corev1.Namespace
+		expected                      map[string]operatorv1.ConditionStatus
+		addViolation, addInconclusive bool
 	}{
 		{
-			name: "with default namespace",
+			name: "with violating default namespace",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -81,15 +110,43 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation:    true,
+			addInconclusive: false,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionTrue,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with customer disabled syncer",
+			name: "with inconclusive default namespace",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "syncer-by-default",
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
+			},
+		},
+		{
+			name: "with violating customer disabled syncer",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -100,15 +157,45 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionFalse,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionTrue,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionTrue,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with customer re-enabled syncer",
+			name: "with inconclusive customer disabled syncer",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "syncer-no-thx",
+						Labels: map[string]string{
+							"security.openshift.io/scc.podSecurityLabelSync": "false",
+						},
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionTrue,
+			},
+		},
+		{
+			name: "with violating customer re-enabled syncer",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -119,15 +206,45 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionTrue,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with openshift namespace",
+			name: "with inconclusive customer re-enabled syncer",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "syncer-yes-plz",
+						Labels: map[string]string{
+							"security.openshift.io/scc.podSecurityLabelSync": "true",
+						},
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
+			},
+		},
+		{
+			name: "with violating openshift namespace",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -135,15 +252,42 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionFalse,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionTrue,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionTrue,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with run-level 0 namespace",
+			name: "with inconclusive openshift namespace",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "openshift-fail",
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionTrue,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
+			},
+		},
+		{
+			name: "with violating run-level 0 namespace",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -151,15 +295,42 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionFalse,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionTrue,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionTrue,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with other customer types in combination",
+			name: "with inconclusive run-level 0 namespace",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "kube-system",
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionTrue,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
+			},
+		},
+		{
+			name: "with other violating customer types in combination",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -175,15 +346,50 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionTrue,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionTrue,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionTrue,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 		{
-			name: "with other system types in combination",
+			name: "with other inconclusive customer types in combination",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foobar",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foobar",
+						Labels: map[string]string{
+							"security.openshift.io/scc.podSecurityLabelSync": "false",
+						},
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionTrue,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionTrue,
+			},
+		},
+		{
+			name: "with other violating system types in combination",
 			namespace: []*corev1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -203,11 +409,50 @@ func TestOperatorStatus(t *testing.T) {
 					},
 				},
 			},
+			addViolation: true,
 			expected: map[string]operatorv1.ConditionStatus{
-				"PodSecurityCustomerEvaluationConditionsDetected":       operatorv1.ConditionFalse,
-				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionTrue,
-				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionTrue,
-				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionTrue,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionTrue,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
+			},
+		},
+		{
+			name: "with other inconclusive system types in combination",
+			namespace: []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "openshift-namespace",
+						Labels: map[string]string{
+							"pod-security.kubernetes.io/audit":         "restricted",
+							"pod-security.kubernetes.io/audit-version": "v1.24",
+							"pod-security.kubernetes.io/warn":          "restricted",
+							"pod-security.kubernetes.io/warn-version":  "v1.24",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "kube-system",
+						Labels: map[string]string{},
+					},
+				},
+			},
+			addViolation:    false,
+			addInconclusive: true,
+			expected: map[string]operatorv1.ConditionStatus{
+				"PodSecurityCustomerEvaluationViolationConditionsDetected":          operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationViolationConditionsDetected":         operatorv1.ConditionFalse,
+				"PodSecurityRunLevelZeroEvaluationViolationConditionsDetected":      operatorv1.ConditionFalse,
+				"PodSecurityDisabledSyncerEvaluationViolationConditionsDetected":    operatorv1.ConditionFalse,
+				"PodSecurityCustomerEvaluationInconclusiveConditionsDetected":       operatorv1.ConditionFalse,
+				"PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected":      operatorv1.ConditionTrue,
+				"PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected":   operatorv1.ConditionTrue,
+				"PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected": operatorv1.ConditionFalse,
 			},
 		},
 	} {
@@ -216,7 +461,12 @@ func TestOperatorStatus(t *testing.T) {
 			cond := podSecurityOperatorConditions{}
 
 			for _, ns := range tt.namespace {
-				cond.addViolation(ns)
+				if tt.addViolation {
+					cond.addViolation(ns)
+				}
+				if tt.addInconclusive {
+					cond.addInconclusive(ns)
+				}
 			}
 
 			status := &operatorv1.OperatorStatus{}

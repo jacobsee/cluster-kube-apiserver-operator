@@ -14,12 +14,19 @@ import (
 )
 
 const (
-	PodSecurityCustomerType       = "PodSecurityCustomerEvaluationConditionsDetected"
-	PodSecurityOpenshiftType      = "PodSecurityOpenshiftEvaluationConditionsDetected"
-	PodSecurityRunLevelZeroType   = "PodSecurityRunLevelZeroEvaluationConditionsDetected"
-	PodSecurityDisabledSyncerType = "PodSecurityDisabledSyncerEvaluationConditionsDetected"
+	PodSecurityCustomerViolationType          = "PodSecurityCustomerEvaluationViolationConditionsDetected"
+	PodSecurityOpenshiftViolationType         = "PodSecurityOpenshiftEvaluationViolationConditionsDetected"
+	PodSecurityRunLevelZeroViolationType      = "PodSecurityRunLevelZeroEvaluationViolationConditionsDetected"
+	PodSecurityDisabledSyncerViolationType    = "PodSecurityDisabledSyncerEvaluationViolationConditionsDetected"
+	PodSecurityCustomerInconclusiveType       = "PodSecurityCustomerEvaluationInconclusiveConditionsDetected"
+	PodSecurityOpenshiftInconclusiveType      = "PodSecurityOpenshiftEvaluationInconclusiveConditionsDetected"
+	PodSecurityRunLevelZeroInconclusiveType   = "PodSecurityRunLevelZeroEvaluationInconclusiveConditionsDetected"
+	PodSecurityDisabledSyncerInconclusiveType = "PodSecurityDisabledSyncerEvaluationInconclusiveConditionsDetected"
 
 	labelSyncControlLabel = "security.openshift.io/scc.podSecurityLabelSync"
+
+	violationReason    = "PSViolationsDetected"
+	inconclusiveReason = "PSViolationDecisionInconclusive"
 )
 
 var (
@@ -32,10 +39,14 @@ var (
 )
 
 type podSecurityOperatorConditions struct {
-	violatingOpenShiftNamespaces      []string
-	violatingRunLevelZeroNamespaces   []string
-	violatingCustomerNamespaces       []string
-	violatingDisabledSyncerNamespaces []string
+	violatingOpenShiftNamespaces         []string
+	violatingRunLevelZeroNamespaces      []string
+	violatingCustomerNamespaces          []string
+	violatingDisabledSyncerNamespaces    []string
+	inconclusiveOpenShiftNamespaces      []string
+	inconclusiveRunLevelZeroNamespaces   []string
+	inconclusiveCustomerNamespaces       []string
+	inconclusiveDisabledSyncerNamespaces []string
 }
 
 func (c *podSecurityOperatorConditions) addViolation(ns *corev1.Namespace) {
@@ -59,16 +70,45 @@ func (c *podSecurityOperatorConditions) addViolation(ns *corev1.Namespace) {
 	c.violatingCustomerNamespaces = append(c.violatingCustomerNamespaces, ns.Name)
 }
 
-func makeCondition(conditionType string, namespaces []string) operatorv1.OperatorCondition {
+func (c *podSecurityOperatorConditions) addInconclusive(ns *corev1.Namespace) {
+	if runLevelZeroNamespaces.Has(ns.Name) {
+		c.inconclusiveRunLevelZeroNamespaces = append(c.inconclusiveRunLevelZeroNamespaces, ns.Name)
+		return
+	}
+
+	isOpenShift := strings.HasPrefix(ns.Name, "openshift")
+	if isOpenShift {
+		c.inconclusiveOpenShiftNamespaces = append(c.inconclusiveOpenShiftNamespaces, ns.Name)
+		return
+	}
+
+	if ns.Labels[labelSyncControlLabel] == "false" {
+		// This is the only case in which the controller wouldn't enforce the pod security standards.
+		c.inconclusiveDisabledSyncerNamespaces = append(c.inconclusiveDisabledSyncerNamespaces, ns.Name)
+		return
+	}
+
+	c.inconclusiveCustomerNamespaces = append(c.inconclusiveCustomerNamespaces, ns.Name)
+}
+
+func makeCondition(conditionType, conditionReason string, namespaces []string) operatorv1.OperatorCondition {
+	var messageFormatter string
+
+	if conditionReason == violationReason {
+		messageFormatter = "Violations detected in namespaces: %v"
+	} else if conditionReason == inconclusiveReason {
+		messageFormatter = "Could not evaluate violations for namespaces: %v"
+	}
+
 	if len(namespaces) > 0 {
 		sort.Strings(namespaces)
 		return operatorv1.OperatorCondition{
 			Type:               conditionType,
 			Status:             operatorv1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
-			Reason:             "PSViolationsDetected",
+			Reason:             conditionReason,
 			Message: fmt.Sprintf(
-				"Violations detected in namespaces: %v",
+				messageFormatter,
 				namespaces,
 			),
 		}
@@ -84,9 +124,13 @@ func makeCondition(conditionType string, namespaces []string) operatorv1.Operato
 
 func (c *podSecurityOperatorConditions) toConditionFuncs() []v1helpers.UpdateStatusFunc {
 	return []v1helpers.UpdateStatusFunc{
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityCustomerType, c.violatingCustomerNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityOpenshiftType, c.violatingOpenShiftNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityRunLevelZeroType, c.violatingRunLevelZeroNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityDisabledSyncerType, c.violatingDisabledSyncerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityCustomerViolationType, violationReason, c.violatingCustomerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityOpenshiftViolationType, violationReason, c.violatingOpenShiftNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityRunLevelZeroViolationType, violationReason, c.violatingRunLevelZeroNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityDisabledSyncerViolationType, violationReason, c.violatingDisabledSyncerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityCustomerInconclusiveType, inconclusiveReason, c.inconclusiveCustomerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityOpenshiftInconclusiveType, inconclusiveReason, c.inconclusiveOpenShiftNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityRunLevelZeroInconclusiveType, inconclusiveReason, c.inconclusiveRunLevelZeroNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityDisabledSyncerInconclusiveType, inconclusiveReason, c.inconclusiveDisabledSyncerNamespaces)),
 	}
 }
