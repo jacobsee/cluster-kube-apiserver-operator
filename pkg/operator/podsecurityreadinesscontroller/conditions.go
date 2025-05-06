@@ -94,10 +94,13 @@ func (c *podSecurityOperatorConditions) addInconclusive(ns *corev1.Namespace) {
 func makeCondition(conditionType, conditionReason string, namespaces []string) operatorv1.OperatorCondition {
 	var messageFormatter string
 
-	if conditionReason == violationReason {
+	switch conditionReason {
+	case violationReason:
 		messageFormatter = "Violations detected in namespaces: %v"
-	} else if conditionReason == inconclusiveReason {
+	case inconclusiveReason:
 		messageFormatter = "Could not evaluate violations for namespaces: %v"
+	default:
+		messageFormatter = "Unexpected condition for namespace: %v"
 	}
 
 	if len(namespaces) > 0 {

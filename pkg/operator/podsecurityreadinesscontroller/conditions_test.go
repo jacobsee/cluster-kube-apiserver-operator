@@ -42,11 +42,11 @@ func TestCondition(t *testing.T) {
 		expectedCondition := operatorv1.OperatorCondition{
 			Type:    PodSecurityCustomerViolationType,
 			Status:  operatorv1.ConditionTrue,
-			Reason:  "PSViolationsDetected",
-			Message: "Violations detected in namespaces: [namespace1 namespace2]",
+			Reason:  "PSViolationDecisionInconclusive",
+			Message: "Could not evaluate violations for namespaces: [namespace1 namespace2]",
 		}
 
-		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
+		condition := makeCondition(PodSecurityCustomerViolationType, inconclusiveReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
