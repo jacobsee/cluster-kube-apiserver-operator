@@ -21,12 +21,8 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 		return false, err
 	}
 
-	var enforceLabel string
-
-	if _, ok := nsApplyConfig.Annotations[securityv1.MinimallySufficientPodSecurityStandard]; ok {
-		// Pick the MinimallySufficientPodSecurityStandard if it exists
-		enforceLabel = nsApplyConfig.Annotations[securityv1.MinimallySufficientPodSecurityStandard]
-	} else {
+	enforceLabel, ok := nsApplyConfig.Annotations[securityv1.MinimallySufficientPodSecurityStandard]
+	if !ok {
 		return false, fmt.Errorf("unable to determine if the namespace is violating because the MinimallySufficientPodSecurityStandard annotation wasn't found")
 	}
 
