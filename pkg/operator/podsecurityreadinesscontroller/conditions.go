@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	PodSecurityCustomerViolationType       = "PodSecurityCustomerEvaluationConditionsDetected"
-	PodSecurityOpenshiftViolationType      = "PodSecurityOpenshiftEvaluationConditionsDetected"
-	PodSecurityRunLevelZeroViolationType   = "PodSecurityRunLevelZeroEvaluationConditionsDetected"
-	PodSecurityDisabledSyncerViolationType = "PodSecurityDisabledSyncerEvaluationConditionsDetected"
-	PodSecurityInconclusiveType            = "PodSecurityInconclusiveConditionsDetected"
+	PodSecurityCustomerType       = "PodSecurityCustomerEvaluationConditionsDetected"
+	PodSecurityOpenshiftType      = "PodSecurityOpenshiftEvaluationConditionsDetected"
+	PodSecurityRunLevelZeroType   = "PodSecurityRunLevelZeroEvaluationConditionsDetected"
+	PodSecurityDisabledSyncerType = "PodSecurityDisabledSyncerEvaluationConditionsDetected"
+	PodSecurityInconclusiveType   = "PodSecurityInconclusiveEvaluationConditionsDetected"
 
 	labelSyncControlLabel = "security.openshift.io/scc.podSecurityLabelSync"
 
@@ -104,10 +104,10 @@ func makeCondition(conditionType, conditionReason string, namespaces []string) o
 
 func (c *podSecurityOperatorConditions) toConditionFuncs() []v1helpers.UpdateStatusFunc {
 	return []v1helpers.UpdateStatusFunc{
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityCustomerViolationType, violationReason, c.violatingCustomerNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityOpenshiftViolationType, violationReason, c.violatingOpenShiftNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityRunLevelZeroViolationType, violationReason, c.violatingRunLevelZeroNamespaces)),
-		v1helpers.UpdateConditionFn(makeCondition(PodSecurityDisabledSyncerViolationType, violationReason, c.violatingDisabledSyncerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityCustomerType, violationReason, c.violatingCustomerNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityOpenshiftType, violationReason, c.violatingOpenShiftNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityRunLevelZeroType, violationReason, c.violatingRunLevelZeroNamespaces)),
+		v1helpers.UpdateConditionFn(makeCondition(PodSecurityDisabledSyncerType, violationReason, c.violatingDisabledSyncerNamespaces)),
 		v1helpers.UpdateConditionFn(makeCondition(PodSecurityInconclusiveType, inconclusiveReason, c.inconclusiveNamespaces)),
 	}
 }

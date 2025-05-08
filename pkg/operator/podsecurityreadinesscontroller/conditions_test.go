@@ -12,13 +12,13 @@ func TestCondition(t *testing.T) {
 	t.Run("with violating namespaces", func(t *testing.T) {
 		namespaces := []string{"namespace1", "namespace2"}
 		expectedCondition := operatorv1.OperatorCondition{
-			Type:    PodSecurityCustomerViolationType,
+			Type:    PodSecurityCustomerType,
 			Status:  operatorv1.ConditionTrue,
 			Reason:  "PSViolationsDetected",
 			Message: "Violations detected in namespaces: [namespace1 namespace2]",
 		}
 
-		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
+		condition := makeCondition(PodSecurityCustomerType, violationReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
@@ -40,13 +40,13 @@ func TestCondition(t *testing.T) {
 	t.Run("with inconclusive namespaces", func(t *testing.T) {
 		namespaces := []string{"namespace1", "namespace2"}
 		expectedCondition := operatorv1.OperatorCondition{
-			Type:    PodSecurityCustomerViolationType,
+			Type:    PodSecurityCustomerType,
 			Status:  operatorv1.ConditionTrue,
 			Reason:  "PSViolationDecisionInconclusive",
 			Message: "Could not evaluate violations for namespaces: [namespace1 namespace2]",
 		}
 
-		condition := makeCondition(PodSecurityCustomerViolationType, inconclusiveReason, namespaces)
+		condition := makeCondition(PodSecurityCustomerType, inconclusiveReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
@@ -68,12 +68,12 @@ func TestCondition(t *testing.T) {
 	t.Run("without namespaces", func(t *testing.T) {
 		namespaces := []string{}
 		expectedCondition := operatorv1.OperatorCondition{
-			Type:   PodSecurityCustomerViolationType,
+			Type:   PodSecurityCustomerType,
 			Status: operatorv1.ConditionFalse,
 			Reason: "ExpectedReason",
 		}
 
-		condition := makeCondition(PodSecurityCustomerViolationType, violationReason, namespaces)
+		condition := makeCondition(PodSecurityCustomerType, violationReason, namespaces)
 
 		if condition.Type != expectedCondition.Type {
 			t.Errorf("expected condition type %s, got %s", expectedCondition.Type, condition.Type)
@@ -117,7 +117,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -138,7 +138,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionTrue,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -159,7 +159,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -177,7 +177,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionTrue,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -195,7 +195,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionTrue,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -221,7 +221,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionTrue,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -251,7 +251,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionTrue,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionTrue,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionFalse,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 			},
 		},
 		{
@@ -270,7 +270,7 @@ func TestOperatorStatus(t *testing.T) {
 				"PodSecurityOpenshiftEvaluationConditionsDetected":      operatorv1.ConditionFalse,
 				"PodSecurityRunLevelZeroEvaluationConditionsDetected":   operatorv1.ConditionFalse,
 				"PodSecurityDisabledSyncerEvaluationConditionsDetected": operatorv1.ConditionFalse,
-				"PodSecurityInconclusiveConditionsDetected":             operatorv1.ConditionTrue,
+				"PodSecurityInconclusiveEvaluationConditionsDetected":   operatorv1.ConditionTrue,
 			},
 		},
 	} {
