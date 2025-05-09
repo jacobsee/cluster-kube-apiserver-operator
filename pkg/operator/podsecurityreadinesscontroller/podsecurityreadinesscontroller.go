@@ -88,10 +88,6 @@ func (c *PodSecurityReadinessController) sync(ctx context.Context, syncCtx facto
 			klog.V(2).ErrorS(err, "namespace:", ns.Name)
 
 			conditions.addInconclusive(&ns)
-
-			// We don't want to sync more often than the resync interval.
-			return nil
-
 		}
 	}
 
