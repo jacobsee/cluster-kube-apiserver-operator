@@ -89,13 +89,13 @@ func (c *PodSecurityReadinessController) isUserViolation(ctx context.Context, ns
 		return false, err
 	}
 
+	psaEvaluator, err := policy.NewEvaluator(policy.DefaultChecks())
+	if err != nil {
+		panic(err)
+	}
+
 	for _, pod := range pods.Items {
 		if subjectType, ok := pod.Annotations[securityv1.ValidatedSCCSubjectTypeAnnotation]; ok && subjectType == "user" {
-
-			psaEvaluator, err := policy.NewEvaluator(policy.DefaultChecks())
-			if err != nil {
-				panic(err)
-			}
 
 			results := psaEvaluator.EvaluatePod(
 				psapi.LevelVersion{Level: enforcementLevel, Version: enforcementVersion},
