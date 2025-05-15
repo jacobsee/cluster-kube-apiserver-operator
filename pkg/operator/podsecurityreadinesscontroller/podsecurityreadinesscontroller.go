@@ -98,50 +98,6 @@ func (c *PodSecurityReadinessController) sync(ctx context.Context, syncCtx facto
 	return err
 }
 
-// func (c *PodSecurityReadinessController) isUserViolation(ctx context.Context, ns *corev1.Namespace) (bool, error) {
-// 	// Check if we should check this namespace for user SCCs
-// 	if !shouldCheckForUserSCC(ns) {
-// 		return false, nil
-// 	}
-
-// 	// Get all user SCCs in the namespace
-// 	userSCCs, err := c.getAllUserSCCs(ns)
-// 	if err != nil {
-// 		return false, err
-// 	}
-
-// 	// Check if any of the SCCs is named "user"
-// 	for _, scc := range userSCCs {
-// 		if scc == "user" {
-// 			return true, nil
-// 		}
-// 	}
-
-// 	return false, nil
-// }
-
-// func (c *PodSecurityReadinessController) getAllUserSCCs(ns *corev1.Namespace) ([]string, error) {
-// 	userSCCs := make([]string, 0)
-
-// 	pods, err := c.kubeClient.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
-// 	if err != nil {
-// 		klog.V(2).ErrorS(err, "Failed to list pods in namespace", "namespace", ns.Name)
-// 		return []string{}, err
-// 	}
-
-// 	for _, pod := range pods.Items {
-// 		if subjectType, ok := pod.Annotations[securityv1.ValidatedSCCSubjectTypeAnnotation]; ok && subjectType == "user" {
-// 			if scc, ok := pod.Annotations[securityv1.ValidatedSCCAnnotation]; ok {
-// 				userSCCs = append(userSCCs, scc)
-// 			} else {
-// 				return []string{}, fmt.Errorf("could not get validated SCC for pod %s in namespace %s", pod.Name, ns.Name)
-// 			}
-// 		}
-// 	}
-
-// 	return userSCCs, nil
-// }
-
 func nonEnforcingSelector() (string, error) {
 	selector := labels.NewSelector()
 	labelsRequirement, err := labels.NewRequirement(psapi.EnforceLevelLabel, selection.DoesNotExist, []string{})
