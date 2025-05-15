@@ -7,12 +7,18 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	applyconfiguration "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/klog/v2"
 	psapi "k8s.io/pod-security-admission/api"
 )
 
 const (
 	syncerControllerName = "pod-security-admission-label-synchronization-controller"
+)
+
+var (
+	alertLabels = sets.New(psapi.WarnLevelLabel, psapi.AuditLevelLabel)
 )
 
 func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Context, ns *corev1.Namespace) (bool, error) {
@@ -21,9 +27,9 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 		return false, err
 	}
 
-	enforceLabel, ok := nsApplyConfig.Annotations[securityv1.MinimallySufficientPodSecurityStandard]
-	if !ok {
-		return false, fmt.Errorf("unable to determine if the namespace is violating because the MinimallySufficientPodSecurityStandard annotation wasn't found")
+	enforceLabel, err := determineEnforceLabelForNamespace(nsApplyConfig)
+	if err != nil {
+		return false, err
 	}
 
 	nsApply := applyconfiguration.Namespace(ns.Name).WithLabels(map[string]string{
@@ -42,4 +48,53 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 
 	// If there are warnings, the namespace is violating.
 	return len(c.warningsHandler.PopAll()) > 0, nil
+}
+
+func determineEnforceLabelForNamespace(ns *applyconfiguration.NamespaceApplyConfiguration) (string, error) {
+	if _, ok := ns.Annotations[securityv1.MinimallySufficientPodSecurityStandard]; ok {
+		// Pick the MinimallySufficientPodSecurityStandard if it exists
+		return ns.Annotations[securityv1.MinimallySufficientPodSecurityStandard], nil
+	}
+
+	viableLabels := map[string]string{}
+
+	for alertLabel := range alertLabels {
+		if value, ok := ns.Labels[alertLabel]; ok {
+			viableLabels[alertLabel] = value
+		}
+	}
+
+	if len(viableLabels) == 0 {
+		// If there are no labels/annotations managed by the syncer, we can't make a decision.
+		return "", fmt.Errorf("unable to determine if the namespace is violating because no appropriate labels or annotations were found")
+	}
+
+	return pickStrictest(viableLabels), nil
+}
+
+func pickStrictest(viableLabels map[string]string) string {
+	targetLevel := ""
+	for label, value := range viableLabels {
+		level, err := psapi.ParseLevel(value)
+		if err != nil {
+			klog.V(4).InfoS("invalid level", "label", label, "value", value)
+			continue
+		}
+
+		if targetLevel == "" {
+			targetLevel = value
+			continue
+		}
+
+		if psapi.CompareLevels(psapi.Level(targetLevel), level) < 0 {
+			targetLevel = value
+		}
+	}
+
+	if targetLevel == "" {
+		// Global Config will set it to "restricted", but shouldn't happen.
+		return string(psapi.LevelRestricted)
+	}
+
+	return targetLevel
 }
