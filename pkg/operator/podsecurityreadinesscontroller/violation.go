@@ -3,6 +3,7 @@ package podsecurityreadinesscontroller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	securityv1 "github.com/openshift/api/security/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,6 +12,7 @@ import (
 	applyconfiguration "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/klog/v2"
 	psapi "k8s.io/pod-security-admission/api"
+	pspolicy "k8s.io/pod-security-admission/policy"
 )
 
 const (
@@ -21,15 +23,17 @@ var (
 	alertLabels = sets.New(psapi.WarnLevelLabel, psapi.AuditLevelLabel)
 )
 
-func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Context, ns *corev1.Namespace) (bool, error) {
+// isNamespaceViolating checks if a namespace is ready for Pod Security Admission enforcement.
+// Return value is whether the namespace is violating, whether the violation is related to a user (non-SA) workload, and error
+func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Context, ns *corev1.Namespace) (bool, bool, error) {
 	nsApplyConfig, err := applyconfiguration.ExtractNamespace(ns, syncerControllerName)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	enforceLabel, err := determineEnforceLabelForNamespace(nsApplyConfig)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	nsApply := applyconfiguration.Namespace(ns.Name).WithLabels(map[string]string{
@@ -43,11 +47,80 @@ func (c *PodSecurityReadinessController) isNamespaceViolating(ctx context.Contex
 			FieldManager: "pod-security-readiness-controller",
 		})
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	// If there are warnings, the namespace is violating.
-	return len(c.warningsHandler.PopAll()) > 0, nil
+	if len(c.warningsHandler.PopAll()) > 0 {
+		// Check if the violation is related to a user workload.
+		userViolation, err := c.isUserViolation(ctx, ns, enforceLabel)
+		if err != nil {
+			return false, false, err
+		}
+
+		return true, userViolation, nil
+	}
+
+	return false, false, nil
+}
+
+func (c *PodSecurityReadinessController) isUserViolation(ctx context.Context, ns *corev1.Namespace, label string) (bool, error) {
+	if !shouldCheckForUserViolation(ns) {
+		return false, nil
+	}
+
+	var enforcementLevel psapi.Level
+	enforcementVersion := psapi.LatestVersion()
+
+	switch strings.ToLower(label) {
+	case "restricted":
+		enforcementLevel = psapi.LevelRestricted
+	case "baseline":
+		enforcementLevel = psapi.LevelBaseline
+	case "privileged":
+		enforcementLevel = psapi.LevelPrivileged
+	default:
+		return false, fmt.Errorf("unknown level: %q", label)
+	}
+
+	pods, err := c.kubeClient.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		klog.V(2).ErrorS(err, "Failed to list pods in namespace", "namespace", ns.Name)
+		return false, err
+	}
+
+	for _, pod := range pods.Items {
+		if subjectType, ok := pod.Annotations[securityv1.ValidatedSCCSubjectTypeAnnotation]; ok && subjectType == "user" {
+
+			psaEvaluator, err := pspolicy.NewEvaluator(pspolicy.DefaultChecks())
+			if err != nil {
+				panic(err)
+			}
+
+			results := psaEvaluator.EvaluatePod(
+				psapi.LevelVersion{Level: enforcementLevel, Version: enforcementVersion},
+				&pod.ObjectMeta,
+				&pod.Spec,
+			)
+
+			for _, result := range results {
+				if !result.Allowed {
+					// This pod is running as a user's SCC and is violating the given PSA level
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func shouldCheckForUserViolation(ns *corev1.Namespace) bool {
+	if runLevelZeroNamespaces.Has(ns.Name) || strings.HasPrefix(ns.Name, "openshift") || ns.Labels[labelSyncControlLabel] == "false" {
+		return false
+	}
+
+	return true
 }
 
 func determineEnforceLabelForNamespace(ns *applyconfiguration.NamespaceApplyConfiguration) (string, error) {

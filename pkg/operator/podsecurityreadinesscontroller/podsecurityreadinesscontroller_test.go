@@ -357,7 +357,8 @@ func TestPodSecurityViolationController(t *testing.T) {
 				},
 			}
 
-			isViolating, err := controller.isNamespaceViolating(context.TODO(), tt.namespace)
+			// Test user violation logic
+			isViolating, _, err := controller.isNamespaceViolating(context.TODO(), tt.namespace)
 			if (err != nil) != tt.expectedError {
 				t.Errorf("expected error %v, got %v", tt.expectedError, err)
 			}
